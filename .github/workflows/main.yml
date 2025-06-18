@@ -1,45 +1,24 @@
-import requests
-import os
+name: Sync Figma Embeds
 
-NOTION_API_URL = "https://api.notion.com/v1"
-NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
-DATABASE_ID = os.environ.get("DATABASE_ID")
-FIGMA_PROPERTY = os.environ.get("FIGMA_PROPERTY", "Figma-connect")
-NOTION_VERSION = "2022-06-28"
+on:
+  workflow_dispatch: # allows you to run it manually
+  schedule:
+    - cron: '0 12 * * *'  # runs daily at 12pm UTC
 
-headers = {
-    "Authorization": f"Bearer {NOTION_TOKEN}",
-    "Notion-Version": NOTION_VERSION,
-    "Content-Type": "application/json",
-}
-
-def get_database_rows():
-    url = f"{NOTION_API_URL}/databases/{21633680b460809f85cff77d4e6e66ed}/query"
-    response = requests.post(url, headers=headers)
-    return response.json()["results"]
-
-def embed_figma_link(page_id, figma_url):
-    embed_block = {
-        "object": "block",
-        "type": "embed",
-        "embed": {
-            "url": f"https://www.figma.com/embed?embed_host=notion&url={figma_url}"
-        }
-    }
-    url = f"{NOTION_API_URL}/blocks/{page_id}/children"
-    res = requests.patch(url, headers=headers, json={"children": [embed_block]})
-    return res.status_code, res.json()
-
-def main():
-    rows = get_database_rows()
-    for row in rows:
-        props = row["properties"]
-        page_id = row["id"]
-        figma_prop = props.get(FIGMA_PROPERTY, {})
-        if figma_prop.get("url"):
-            figma_url = figma_prop["url"]
-            status, data = embed_figma_link(page_id, figma_url)
-            print(f"Inserted embed to {page_id}: {status}")
-
-if __name__ == "__main__":
-    main()
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run script
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          DATABASE_ID: ${{ secrets.DATABASE_ID }}
+          FIGMA_PROPERTY: ${{ secrets.FIGMA_PROPERTY }}
+        run: python main.py
