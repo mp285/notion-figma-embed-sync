@@ -39,31 +39,33 @@ def embed_figma_link(page_id, figma_url):
     print(f"📥 Inserted embed: {res.status_code} for page {page_id}")
     return res.status_code, res.json()
 
-def main():
+  def main():
     rows = get_database_rows()
     print(f"✅ Found {len(rows)} rows in Notion DB.")
 
     for row in rows:
         page_id = row["id"]
         props = row["properties"]
+        title = props.get("Name", {}).get("title", [{}])[0].get("text", {}).get("content", "Untitled")
 
-        # Get the Figma link value from the correct property
+        print(f"\n🔍 Checking page: {title} (ID: {page_id})")
+
+        # Get the Figma link from the expected property
         figma_prop = props.get(FIGMA_PROPERTY)
         if not figma_prop:
-            print(f"⚠️ Row {page_id} missing Figma property '{FIGMA_PROPERTY}'")
+            print(f"⚠️ Property '{FIGMA_PROPERTY}' not found in row.")
             continue
 
         figma_url = figma_prop.get("url")
         if not figma_url:
-            print(f"⚠️ Row {page_id} has empty Figma URL")
+            print(f"⚠️ Row has no URL in '{FIGMA_PROPERTY}' field.")
             continue
 
-        # Insert embed
-        status, _ = embed_figma_link(page_id, figma_url)
-        if status == 200:
-            print(f"✅ Embed inserted for {page_id}")
-        else:
-            print(f"❌ Failed to insert embed for {page_id}")
+        print(f"🔗 Figma URL found: {figma_url}")
 
-if __name__ == "__main__":
-    main()
+        # Try to embed it
+        status, res = embed_figma_link(page_id, figma_url)
+        if status == 200:
+            print(f"✅ Embed inserted into page '{title}'")
+        else:
+            print(f"❌ Failed to insert embed for '{title}' — status {status} — {res}")
