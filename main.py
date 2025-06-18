@@ -32,11 +32,15 @@ def extract_file_and_node_id(url):
 
     return file_id, node_id
 
-def get_figma_image_url(file_id, node_id):
+def get_figma_image_url(file_id, node_id, format="jpg", scale=2):
     figma_headers = {"X-Figma-Token": FIGMA_TOKEN}
-    url = f"https://api.figma.com/v1/images/{file_id}?ids={node_id}&format=png"
+    url = (
+        f"https://api.figma.com/v1/images/{file_id}"
+        f"?ids={node_id}&format={format}&scale={scale}"
+    )
     response = requests.get(url, headers=figma_headers)
     data = response.json()
+    print("🧪 Figma image API response:", data)
     return data.get("images", {}).get(node_id)
 
 def get_database_rows():
@@ -109,14 +113,14 @@ def main():
             print("❌ Could not parse file ID from Figma URL.")
             continue
 
-        # ➤ Get image URL
-        image_url = get_figma_image_url(file_id, node_id)
+        # ➤ Get JPG image URL
+        image_url = get_figma_image_url(file_id, node_id, format="jpg", scale=2)
         if image_url:
-            print(f"🖼 Figma thumbnail: {image_url}")
+            print(f"🖼 Figma JPG thumbnail: {image_url}")
             update_status = update_thumbnail(page_id, image_url)
             print(f"🔁 Notion update status: {update_status}")
         else:
-            print("❌ Failed to fetch Figma thumbnail.")
+            print("❌ Failed to fetch JPG from Figma API.")
 
 if __name__ == "__main__":
     main()
