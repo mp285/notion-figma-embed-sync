@@ -1,0 +1,24 @@
+name: Sync Figma Embeds
+
+on:
+  workflow_dispatch: # allows you to run it manually
+  schedule:
+    - cron: '0 12 * * *'  # runs daily at 12pm UTC
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run script
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          DATABASE_ID: ${{ secrets.DATABASE_ID }}
+          FIGMA_PROPERTY: ${{ secrets.FIGMA_PROPERTY }}
+        run: python main.py
