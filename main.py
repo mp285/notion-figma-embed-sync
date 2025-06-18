@@ -4,7 +4,7 @@ import os
 NOTION_API_URL = "https://api.notion.com/v1"
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 DATABASE_ID = os.environ.get("DATABASE_ID")
-FIGMA_PROPERTY = os.environ.get("FIGMA_PROPERTY", "Figma Link")
+FIGMA_PROPERTY = os.environ.get("FIGMA_PROPERTY", "Figma-connect")
 NOTION_VERSION = "2022-06-28"
 
 headers = {
@@ -14,7 +14,7 @@ headers = {
 }
 
 def get_database_rows():
-    url = f"{NOTION_API_URL}/databases/{DATABASE_ID}/query"
+    url = f"{NOTION_API_URL}/databases/{21633680b460809f85cff77d4e6e66ed}/query"
     response = requests.post(url, headers=headers)
     return response.json()["results"]
 
