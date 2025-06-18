@@ -16,7 +16,9 @@ headers = {
 def get_database_rows():
     url = f"{NOTION_API_URL}/databases/{DATABASE_ID}/query"
     response = requests.post(url, headers=headers)
-    return response.json()["results"]
+    data = response.json()
+    print("🔍 Notion response:", data)
+    return data["results"]
 
 def embed_figma_link(page_id, figma_url):
     embed_block = {
