@@ -1,126 +1,93 @@
-import requests
 import os
+import requests
 import re
-
-# --- 🔐 ENV SETUP ---
-NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
-DATABASE_ID = os.environ.get("DATABASE_ID")
-FIGMA_PROPERTY = os.environ.get("FIGMA_PROPERTY", "Figma Link")
-FIGMA_TOKEN = os.environ.get("FIGMA_TOKEN")
-NOTION_VERSION = "2022-06-28"
-
-NOTION_API_URL = "https://api.notion.com/v1"
-headers = {
-    "Authorization": f"Bearer {NOTION_TOKEN}",
-    "Notion-Version": NOTION_VERSION,
-    "Content-Type": "application/json",
-}
-
-# --- 🔍 HELPERS ---
+from urllib.parse import unquote
 
 def extract_file_and_node_id(url):
-    """
-    Extract file_id and node_id from a Figma file URL
-    """
-    file_match = re.search(r"figma\.com/file/([\w\d]+)", url)
-    node_match = re.search(r"node-id=([\w\d%:-]+)", url)
-
-    if not file_match:
+    match = re.search(r"figma.com/(?:file|design)/([a-zA-Z0-9]+)(?:/[^?]*)?(?:\?.*?node-id=([^&]+))?", url)
+    if not match:
+        print(f"❌ Could not parse Figma URL: {url}")
         return None, None
-    file_id = file_match.group(1)
-    node_id = node_match.group(1).replace(":", "%3A") if node_match else "0%3A1"
 
-    return file_id, node_id
+    file_key = match.group(1)
+    node_id = match.group(2)
+    if node_id:
+        node_id = unquote(node_id)
+        node_id = node_id.replace(":", "%3A")
+    else:
+        print(f"❌ No node ID found in Figma URL: {url}")
 
-def get_figma_image_url(file_id, node_id, format="jpg", scale=2):
-    figma_headers = {"X-Figma-Token": FIGMA_TOKEN}
-    url = (
-        f"https://api.figma.com/v1/images/{file_id}"
-        f"?ids={node_id}&format={format}&scale={scale}"
-    )
-    response = requests.get(url, headers=figma_headers)
-    data = response.json()
-    print("🧪 Figma image API response:", data)
-    return data.get("images", {}).get(node_id)
+    return file_key, node_id
 
 def get_database_rows():
-    url = f"{NOTION_API_URL}/databases/{DATABASE_ID}/query"
-    payload = {"page_size": 10}
-    response = requests.post(url, headers=headers, json=payload, timeout=10)
-    data = response.json()
-    if "results" not in data:
-        raise ValueError("❌ No 'results' in Notion response.")
-    return data["results"]
-
-def embed_figma_link(page_id, figma_url):
-    embed_url = f"https://www.figma.com/embed?embed_host=notion&url={figma_url}"
-    embed_block = {
-        "object": "block",
-        "type": "embed",
-        "embed": {"url": embed_url}
+    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
+    headers = {
+        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json"
     }
-    url = f"{NOTION_API_URL}/blocks/{page_id}/children"
-    res = requests.patch(url, headers=headers, json={"children": [embed_block]})
-    return res.status_code, res.json()
+    response = requests.post(url, headers=headers)
+    response.raise_for_status()
+    return response.json()["results"]
 
-def update_thumbnail(row_id, image_url):
-    url = f"{NOTION_API_URL}/pages/{row_id}"
-    payload = {
+def update_notion_page(page_id, image_url):
+    url = f"https://api.notion.com/v1/pages/{page_id}"
+    headers = {
+        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json"
+    }
+    data = {
         "properties": {
-            "Thumbnail": {"url": image_url}
+            "Thumbnail": {
+                "type": "files",
+                "files": [
+                    {"type": "external", "name": "Figma Image", "external": {"url": image_url}}
+                ]
+            }
         }
     }
-    res = requests.patch(url, headers=headers, json=payload)
-    return res.status_code
+    response = requests.patch(url, headers=headers, json=data)
+    if response.status_code == 200:
+        print("✅ Updated Notion page thumbnail.")
+    else:
+        print("❌ Failed to update Notion page.", response.text)
 
-# --- 🚀 MAIN ---
+def fetch_figma_image(file_key, node_id):
+    headers = {"X-Figma-Token": FIGMA_TOKEN}
+    url = f"https://api.figma.com/v1/images/{file_key}?ids={node_id}&format=jpg"
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        print("❌ Failed to fetch JPG from Figma API.", response.text)
+        return None
 
-def main():
+    image_url = response.json().get("images", {}).get(node_id)
+    print("🖼️ Image URL:", image_url)
+    return image_url
+
+if __name__ == "__main__":
+    NOTION_TOKEN = os.getenv("NOTION_TOKEN")
+    DATABASE_ID = os.getenv("DATABASE_ID")
+    FIGMA_PROPERTY = os.getenv("FIGMA_PROPERTY")
+    FIGMA_TOKEN = os.getenv("FIGMA_TOKEN")
+
     rows = get_database_rows()
     print(f"✅ Found {len(rows)} rows in Notion DB.")
 
     for row in rows:
         page_id = row["id"]
-        props = row["properties"]
-        title = props.get("Name", {}).get("title", [{}])[0].get("text", {}).get("content", "Untitled")
-        print(f"\n🔍 Processing: {title} (Page ID: {page_id})")
-
-        figma_prop = props.get(FIGMA_PROPERTY)
-        if not figma_prop or not figma_prop.get("url"):
-            print("⚠️ No valid Figma URL found.")
+        figma_url = row["properties"].get(FIGMA_PROPERTY, {}).get("url")
+        if not figma_url:
+            print(f"⚠️ No Figma URL found for page {page_id}")
             continue
 
-        figma_url = figma_prop["url"]
-        print(f"🔗 Figma URL: {figma_url}")
+        print(f"🔍 Processing: {row['properties'].get('Name', {}).get('title', [{'text': {'content': page_id}}])[0]['text']['content']} (Page ID: {page_id})")
+        print("🔗 Figma URL:", figma_url)
 
-        # 🧼 Auto-convert /design/ URLs to /file/
-        if 'figma.com/design/' in figma_url:
-            figma_url = figma_url.replace('/design/', '/file/')
-            print(f"🔁 Converted /design/ link to /file/: {figma_url}")
-
-        # 🛑 Skip if thumbnail already exists
-        if props.get("Thumbnail", {}).get("url"):
-            print("⏩ Skipping — Thumbnail already exists")
+        file_key, node_id = extract_file_and_node_id(figma_url)
+        if not file_key or not node_id:
             continue
 
-        # ➤ Insert embed
-        status, _ = embed_figma_link(page_id, figma_url)
-        print(f"📥 Embed insert status: {status}")
-
-        # ➤ Parse file + node ID
-        file_id, node_id = extract_file_and_node_id(figma_url)
-        if not file_id:
-            print("❌ Could not parse file ID from Figma URL.")
-            continue
-
-        # ➤ Get JPG image URL
-        image_url = get_figma_image_url(file_id, node_id, format="jpg", scale=2)
+        image_url = fetch_figma_image(file_key, node_id)
         if image_url:
-            print(f"🖼 Figma JPG thumbnail: {image_url}")
-            update_status = update_thumbnail(page_id, image_url)
-            print(f"🔁 Notion update status: {update_status}")
-        else:
-            print("❌ Failed to fetch JPG from Figma API.")
-
-if __name__ == "__main__":
-    main()
+            update_notion_page(page_id, image_url)
