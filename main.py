@@ -14,7 +14,7 @@ headers = {
 }
 
 def get_database_rows():
-    url = f"{NOTION_API_URL}/databases/{21633680b460809f85cff77d4e6e66ed}/query"
+    url = f"{NOTION_API_URL}/databases/21633680b460809f85cff77d4e6e66ed/query"
     response = requests.post(url, headers=headers)
     return response.json()["results"]
 
