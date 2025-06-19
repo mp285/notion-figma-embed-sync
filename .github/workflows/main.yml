@@ -1,25 +1,29 @@
 name: Sync Figma Embeds
 
 on:
-  workflow_dispatch: # allows you to run it manually
   schedule:
-    - cron: '0 12 * * *'  # runs daily at 12pm UTC
+    - cron: '*/15 * * * *'  # run every 15m
+  workflow_dispatch:
 
 jobs:
-  run-script:
+  sync:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.11'
+
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install requests
+
       - name: Run script
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           DATABASE_ID: ${{ secrets.DATABASE_ID }}
-          FIGMA_PROPERTY: ${{ secrets.FIGMA_PROPERTY }}
           FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+          FIGMA_PROPERTY: "Figma-connect"  # name of your URL property
+          THUMBNAIL_PROPERTY: "Thumbnail"  # name of your Files & media property (optional)
         run: python main.py
