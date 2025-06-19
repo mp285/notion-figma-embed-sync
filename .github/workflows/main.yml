@@ -21,4 +21,5 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           DATABASE_ID: ${{ secrets.DATABASE_ID }}
           FIGMA_PROPERTY: ${{ secrets.FIGMA_PROPERTY }}
+          FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
         run: python main.py
