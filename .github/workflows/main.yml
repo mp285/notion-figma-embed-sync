@@ -1,15 +1,16 @@
 name: Sync Figma Embeds
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'  # run every 15m
   workflow_dispatch:
+  schedule:
+    - cron: '0 12 * * *'
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -24,6 +25,6 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           DATABASE_ID: ${{ secrets.DATABASE_ID }}
           FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
-          FIGMA_PROPERTY: "Figma-connect"  # name of your URL property
-          THUMBNAIL_PROPERTY: "Thumbnail"  # name of your Files & media property (optional)
+          FIGMA_PROPERTY: Figma-connect
+          THUMBNAIL_PROPERTY: Thumbnail
         run: python main.py
