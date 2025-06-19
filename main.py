@@ -1,4 +1,14 @@
 import os, requests
+import re
+
+def parse_figma_url(url):
+    match = re.search(r'figma\.com/(?:file|design)/([a-zA-Z0-9]+)', url)
+    file_key = match.group(1) if match else None
+
+    node_match = re.search(r'node-id=([^&]+)', url)
+    node_id = node_match.group(1) if node_match else None
+
+    return file_key, node_id
 
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 DATABASE_ID = os.getenv("DATABASE_ID")
@@ -8,20 +18,22 @@ THUMB_PROP = os.getenv("THUMBNAIL_PROPERTY")
 
 headers_notion = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
-    "Notion-Version": "2022-06-28",
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "Notion-Version": "2022-06-28"
 }
-head_figma = {"X-Figma-Token": FIGMA_TOKEN}
+headers_figma = {
+    "X-Figma-Token": FIGMA_TOKEN
+}
 
 def query_db():
-    r = requests.post(f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
-                      headers=headers_notion)
+    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
+    r = requests.post(url, headers=headers_notion)
     r.raise_for_status()
     return r.json()["results"]
 
 def export_figma(file_key, node_id):
     url = f"https://api.figma.com/v1/images/{file_key}?ids={node_id}&format=jpg"
-    r = requests.get(url, headers=head_figma)
+    r = requests.get(url, headers=headers_figma)
     r.raise_for_status()
     return r.json().get("images", {}).get(node_id)
 
@@ -32,13 +44,13 @@ def update_page(page_id, thumb_url):
             THUMB_PROP: {"files": [{"name": "Figma export", "external": {"url": thumb_url}}]}
         }
     }
-    r = requests.patch("https://api.notion.com/v1/pages/" + page_id,
+    r = requests.patch(f"https://api.notion.com/v1/pages/" + page_id,
                        headers=headers_notion, json=data)
     r.raise_for_status()
 
 def main():
     rows = query_db()
-    print(f"✅ Found {len(rows)} rows in Notion DB.")
+    print(f"🟢 Found {len(rows)} rows in Notion DB.")
     for row in rows:
         page_id = row["id"]
         props = row["properties"]
@@ -46,13 +58,16 @@ def main():
         if not fig_url:
             continue
 
-        file_key = fig_url.split("/file/")[-1].split("/")[0]
-        node_id = fig_url.split("node-id=")[-1].split("&")[0]
+        file_key, node_id = parse_figma_url(fig_url)
+        if not file_key or not node_id:
+            print(f"⚠️  Skipping: Could not extract file_key or node_id from {fig_url}")
+            continue
+
         img_url = export_figma(file_key, node_id)
 
         if img_url:
             update_page(page_id, img_url)
-            print(f"🖼️ Updated thumbnail on page {page_id}.")
+            print(f"✅ Updated thumbnail on page {page_id}.")
         else:
             print(f"❌ No image from Figma for {page_id}.")
 
